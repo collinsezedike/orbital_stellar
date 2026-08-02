@@ -18,6 +18,7 @@
     "docs:reference": "node scripts/generate-reference-docs.mjs",
     "docs:generate-open-data": "node scripts/generate-open-data.mjs",
     "docs:check-tsdoc": "node scripts/check-tsdoc-coverage.mjs",
+    "generate:horizon-types": "node scripts/generate-horizon-types.mjs",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -29,6 +30,7 @@
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.9.4",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.62.1"
