@@ -188,6 +188,9 @@ The reference composition - a Next.js route handler that subscribes to an addres
 | [`ROADMAP.md`](ROADMAP.md) | The decoding-standard thesis, Phase 0 → Phase 3 plan, and the Frozen section for out-of-scope items |
 | [`STABILITY.md`](STABILITY.md) | The `v1.0` semver pledge - covered API surface, wire/data contracts, deprecation policy |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release notes (top-level; per-package changelogs roll up) |
+| [`STABILITY.md`](STABILITY.md) | Semver pledge, deprecation window, migration-path policy from `v1.0.0` |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Package map, event lifecycle, normalization, registry |
+| [`docs/semantic-layer.md`](docs/semantic-layer.md) | Mappings, labels, precedence, honesty rule, mainnet worked example |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Setup, coding standards, PR process, Drips Wave Program |
 | [`SECURITY.md`](SECURITY.md) | Vulnerability disclosure policy |
 | [`packages/pulse-core/README.md`](packages/pulse-core/README.md) | EventEngine API, event taxonomy, configuration |
