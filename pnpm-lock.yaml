@@ -200,6 +200,9 @@ importers:
       '@stellar/stellar-sdk':
         specifier: ^16.1.0
         version: 16.2.0
+      yargs:
+        specifier: ^18.0.0
+        version: 18.1.0
     devDependencies:
       '@types/node':
         specifier: ^26.1.2
