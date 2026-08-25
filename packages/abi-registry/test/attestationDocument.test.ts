@@ -9,6 +9,7 @@ const WASM_HASH = "a".repeat(64);
 function makeDocument(overrides: Partial<AttestationDocument> = {}): AttestationDocument {
   return {
     contractId: CONTRACT_ID,
+    executableKind: "wasm",
     wasmHash: WASM_HASH,
     events: [
       {
@@ -62,7 +63,9 @@ describe("validateAttestationDocument", () => {
     const result = validateAttestationDocument(makeDocument({ wasmHash: "not-a-hash" }));
     expect(result.valid).toBe(false);
     if (!result.valid) {
-      expect(result.errors).toContain("wasmHash: must be a 64-character hex-encoded SHA-256 hash");
+      expect(result.errors).toContain(
+        'wasmHash: must be a 64-character hex-encoded SHA-256 hash (required when executableKind is "wasm")',
+      );
     }
   });
 
@@ -121,6 +124,42 @@ describe("validateAttestationDocument", () => {
     if (!result.valid) {
       expect(result.errors).toContain("events[0].topics: must be an array");
       expect(result.errors).toContain("events[0].data: must be an array");
+    }
+  });
+
+  it("accepts a stellarAsset (SAC) document with no wasmHash", () => {
+    const { wasmHash: _omitted, ...doc } = makeDocument({ executableKind: "stellarAsset" });
+    expect(validateAttestationDocument(doc)).toEqual({ valid: true });
+  });
+
+  it("rejects a wasm document missing wasmHash", () => {
+    const { wasmHash: _omitted, ...doc } = makeDocument();
+    const result = validateAttestationDocument(doc);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors).toContain(
+        'wasmHash: must be a 64-character hex-encoded SHA-256 hash (required when executableKind is "wasm")',
+      );
+    }
+  });
+
+  it("rejects a stellarAsset document that still carries a wasmHash", () => {
+    const result = validateAttestationDocument(makeDocument({ executableKind: "stellarAsset" }));
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors).toContain(
+        'wasmHash: must not be present when executableKind is "stellarAsset" (SACs have no WASM to hash)',
+      );
+    }
+  });
+
+  it("rejects an invalid executableKind", () => {
+    const result = validateAttestationDocument(
+      makeDocument({ executableKind: "bogus" as AttestationDocument["executableKind"] }),
+    );
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors).toContain('executableKind: must be "wasm" or "stellarAsset"');
     }
   });
 

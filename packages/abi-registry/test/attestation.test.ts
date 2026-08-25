@@ -18,6 +18,7 @@ function makeDocument(
 ): AttestationDocument {
   return {
     contractId: CONTRACT_ID,
+    executableKind: "wasm",
     wasmHash: WASM_HASH,
     events: [
       {
@@ -40,6 +41,7 @@ describe("canonicalizeAttestation", () => {
       createdAt: a.createdAt,
       attester: a.attester,
       events: a.events,
+      executableKind: a.executableKind,
       wasmHash: a.wasmHash,
       contractId: a.contractId,
     };
@@ -174,6 +176,34 @@ describe("verifyAttestation rejection rules", () => {
     expect(verifyAttestation(envelope, { expectedWasmHash: "d".repeat(64) })).toEqual({
       status: "invalid",
       reason: expect.stringContaining("does not match the on-chain WASM hash"),
+    });
+  });
+});
+
+describe("signAttestation / verifyAttestation for a stellarAsset (SAC) document", () => {
+  it("signs and verifies a document with no wasmHash", () => {
+    const keypair = Keypair.random();
+    const document = makeDocument(keypair.publicKey(), {
+      executableKind: "stellarAsset",
+      wasmHash: undefined,
+    });
+
+    const envelope = signAttestation(document, keypair.secret());
+
+    expect(verifyAttestation(envelope)).toEqual({ status: "valid" });
+  });
+
+  it("rejects expectedWasmHash against a stellarAsset document - there's nothing to check it against", () => {
+    const keypair = Keypair.random();
+    const document = makeDocument(keypair.publicKey(), {
+      executableKind: "stellarAsset",
+      wasmHash: undefined,
+    });
+    const envelope = signAttestation(document, keypair.secret());
+
+    expect(verifyAttestation(envelope, { expectedWasmHash: "d".repeat(64) })).toEqual({
+      status: "invalid",
+      reason: expect.stringContaining('executableKind is "stellarAsset"'),
     });
   });
 });

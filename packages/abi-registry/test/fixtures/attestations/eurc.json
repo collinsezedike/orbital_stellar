@@ -1,0 +1,163 @@
+{
+  "contractId": "CDTKPWPLOURQA2SGTKTUQOWRCBZEORB4BWBOMJ3D3ZTQQSGE5F6JBQLV",
+  "executableKind": "stellarAsset",
+  "events": [
+    {
+      "name": "transfer",
+      "doc": "Emitted on every successful transfer, per the SEP-41 token interface event convention.",
+      "topics": [
+        {
+          "name": "event_name",
+          "type": "symbol",
+          "doc": "Event name symbol, always \"transfer\"."
+        },
+        {
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "name": "to",
+          "type": "address"
+        }
+      ],
+      "data": [
+        {
+          "name": "amount",
+          "type": "i128",
+          "doc": "Amount in EURC base units."
+        }
+      ]
+    },
+    {
+      "name": "mint",
+      "doc": "Emitted when the admin mints new EURC.",
+      "topics": [
+        {
+          "name": "event_name",
+          "type": "symbol",
+          "doc": "Event name symbol, always \"mint\"."
+        },
+        {
+          "name": "admin",
+          "type": "address"
+        },
+        {
+          "name": "to",
+          "type": "address"
+        }
+      ],
+      "data": [
+        {
+          "name": "amount",
+          "type": "i128",
+          "doc": "Amount minted, in EURC base units."
+        }
+      ]
+    },
+    {
+      "name": "burn",
+      "doc": "Emitted when EURC is burned by its holder.",
+      "topics": [
+        {
+          "name": "event_name",
+          "type": "symbol",
+          "doc": "Event name symbol, always \"burn\"."
+        },
+        {
+          "name": "from",
+          "type": "address"
+        }
+      ],
+      "data": [
+        {
+          "name": "amount",
+          "type": "i128",
+          "doc": "Amount burned, in EURC base units."
+        }
+      ]
+    },
+    {
+      "name": "clawback",
+      "doc": "Emitted when the admin claws back EURC from a holder.",
+      "topics": [
+        {
+          "name": "event_name",
+          "type": "symbol",
+          "doc": "Event name symbol, always \"clawback\"."
+        },
+        {
+          "name": "admin",
+          "type": "address"
+        },
+        {
+          "name": "from",
+          "type": "address"
+        }
+      ],
+      "data": [
+        {
+          "name": "amount",
+          "type": "i128",
+          "doc": "Amount clawed back, in EURC base units."
+        }
+      ]
+    },
+    {
+      "name": "set_authorized",
+      "doc": "Emitted when the admin sets an account's authorization flag.",
+      "topics": [
+        {
+          "name": "event_name",
+          "type": "symbol",
+          "doc": "Event name symbol, always \"set_authorized\"."
+        },
+        {
+          "name": "admin",
+          "type": "address"
+        },
+        {
+          "name": "id",
+          "type": "address"
+        }
+      ],
+      "data": [
+        {
+          "name": "authorize",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "approve",
+      "doc": "Emitted when an allowance is granted.",
+      "topics": [
+        {
+          "name": "event_name",
+          "type": "symbol",
+          "doc": "Event name symbol, always \"approve\"."
+        },
+        {
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "name": "spender",
+          "type": "address"
+        }
+      ],
+      "data": [
+        {
+          "name": "amount",
+          "type": "i128",
+          "doc": "Approved amount, in EURC base units."
+        },
+        {
+          "name": "expiration_ledger",
+          "type": "u32"
+        }
+      ]
+    }
+  ],
+  "attester": "GDWYV22YU5ZABTYBBOZCDOUJMIZYSIIO7EZNY2XC5WHAD5AYYHNL5BJ3",
+  "createdAt": "2026-08-01T00:00:00Z"
+}

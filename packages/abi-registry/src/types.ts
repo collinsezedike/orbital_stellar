@@ -17,6 +17,18 @@ import type { EventSpec } from "./spec.js";
 import { validateEventSpec } from "./spec.js";
 
 /**
+ * What kind of executable the attested contract runs, mirroring the real
+ * on-chain `ContractExecutable` XDR union. `"wasm"` contracts have a
+ * deployed WASM blob and therefore a `wasmHash`. `"stellarAsset"` contracts
+ * (SACs - the wrappers behind every classic Stellar asset, including native
+ * XLM) run the network's built-in executable and have **no** WASM to hash -
+ * confirmed against a live mainnet `ContractExecutable` entry, whose
+ * `stellarAsset` variant carries no hash payload at all, not even a
+ * network-wide constant one.
+ */
+export type AttestationExecutableKind = "wasm" | "stellarAsset";
+
+/**
  * A claim that a deployed contract emits a given SEP-48-shaped event schema,
  * for contracts deployed before SEP-48/CAP-67 existed and so have no
  * embedded contract spec to derive this from (SEP §7.3). Signature-envelope
@@ -26,8 +38,14 @@ import { validateEventSpec } from "./spec.js";
 export type AttestationDocument = {
   /** The attested contract's address (`C...`). */
   readonly contractId: string;
-  /** Hex-encoded SHA-256 hash of the contract's deployed WASM bytecode. */
-  readonly wasmHash: string;
+  /** What kind of executable the attested contract runs. */
+  readonly executableKind: AttestationExecutableKind;
+  /**
+   * Hex-encoded SHA-256 hash of the contract's deployed WASM bytecode.
+   * Required when `executableKind` is `"wasm"`; must be absent when it's
+   * `"stellarAsset"`, since SACs have no WASM to hash.
+   */
+  readonly wasmHash?: string;
   /** The SEP-48-shaped event definitions being attested to. */
   readonly events: readonly EventSpec[];
   /** The attester's Stellar account address (`G...`). */
@@ -71,8 +89,18 @@ export function validateAttestationDocument(doc: unknown): AttestationValidation
   if (typeof doc["contractId"] !== "string" || !CONTRACT_ID_RE.test(doc["contractId"])) {
     errors.push("contractId: must be a C-prefixed 56-character Stellar strkey");
   }
-  if (typeof doc["wasmHash"] !== "string" || !SHA256_HEX_RE.test(doc["wasmHash"])) {
-    errors.push("wasmHash: must be a 64-character hex-encoded SHA-256 hash");
+  if (doc["executableKind"] !== "wasm" && doc["executableKind"] !== "stellarAsset") {
+    errors.push('executableKind: must be "wasm" or "stellarAsset"');
+  } else if (doc["executableKind"] === "wasm") {
+    if (typeof doc["wasmHash"] !== "string" || !SHA256_HEX_RE.test(doc["wasmHash"])) {
+      errors.push(
+        'wasmHash: must be a 64-character hex-encoded SHA-256 hash (required when executableKind is "wasm")',
+      );
+    }
+  } else if (doc["wasmHash"] !== undefined) {
+    errors.push(
+      'wasmHash: must not be present when executableKind is "stellarAsset" (SACs have no WASM to hash)',
+    );
   }
   if (!Array.isArray(doc["events"])) {
     errors.push("events: must be an array");

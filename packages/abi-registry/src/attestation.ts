@@ -5,8 +5,8 @@
  * proving who signed a given document and that it hasn't been tampered with
  * since. The document shape itself (`AttestationDocument`) is #20's
  * deliverable, imported from `types.ts`; everything here is shape-agnostic
- * (it only reads `attester` and `wasmHash` directly, and otherwise treats
- * the document as an opaque value to canonicalize/sign/verify).
+ * (it only reads `attester`, `executableKind`, and `wasmHash` directly, and
+ * otherwise treats the document as an opaque value to canonicalize/sign/verify).
  */
 import { Keypair, StrKey } from "@stellar/stellar-sdk";
 import type { AttestationDocument } from "./types.js";
@@ -119,7 +119,9 @@ export type VerifyAttestationOptions = {
  *    over {@link canonicalizeAttestation}'s output for `envelope.payload` -
  *    this also catches any tampering with the payload after signing, since
  *    a single changed byte produces different canonical JSON.
- * 4. If `options.expectedWasmHash` is given, it matches `envelope.payload.wasmHash`.
+ * 4. If `options.expectedWasmHash` is given: `envelope.payload.executableKind`
+ *    must be `"wasm"` (a SAC has no WASM hash to check against), and it must
+ *    match `envelope.payload.wasmHash`.
  *
  * Rules are checked in the above order and verification short-circuits on
  * the first failure.
@@ -162,14 +164,19 @@ export function verifyAttestation(
     return { status: "invalid", reason: "signature does not match payload and publicKey" };
   }
 
-  if (
-    options.expectedWasmHash !== undefined &&
-    options.expectedWasmHash.toLowerCase() !== envelope.payload.wasmHash.toLowerCase()
-  ) {
-    return {
-      status: "invalid",
-      reason: `payload.wasmHash ("${envelope.payload.wasmHash}") does not match the on-chain WASM hash ("${options.expectedWasmHash}")`,
-    };
+  if (options.expectedWasmHash !== undefined) {
+    if (envelope.payload.executableKind !== "wasm" || envelope.payload.wasmHash === undefined) {
+      return {
+        status: "invalid",
+        reason: `options.expectedWasmHash was provided, but payload.executableKind is "${envelope.payload.executableKind}" - only a "wasm" attestation has a wasmHash to verify against`,
+      };
+    }
+    if (options.expectedWasmHash.toLowerCase() !== envelope.payload.wasmHash.toLowerCase()) {
+      return {
+        status: "invalid",
+        reason: `payload.wasmHash ("${envelope.payload.wasmHash}") does not match the on-chain WASM hash ("${options.expectedWasmHash}")`,
+      };
+    }
   }
 
   return { status: "valid" };

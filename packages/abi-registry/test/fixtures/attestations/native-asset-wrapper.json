@@ -1,0 +1,64 @@
+{
+  "contractId": "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA",
+  "executableKind": "stellarAsset",
+  "events": [
+    {
+      "name": "transfer",
+      "doc": "Emitted on every successful transfer, per the SEP-41 token interface event convention. The native asset has no mint/burn/clawback/set_authorized functions, so it has no corresponding events either.",
+      "topics": [
+        {
+          "name": "event_name",
+          "type": "symbol",
+          "doc": "Event name symbol, always \"transfer\"."
+        },
+        {
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "name": "to",
+          "type": "address"
+        }
+      ],
+      "data": [
+        {
+          "name": "amount",
+          "type": "i128",
+          "doc": "Amount in stroops."
+        }
+      ]
+    },
+    {
+      "name": "approve",
+      "doc": "Emitted when an allowance is granted.",
+      "topics": [
+        {
+          "name": "event_name",
+          "type": "symbol",
+          "doc": "Event name symbol, always \"approve\"."
+        },
+        {
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "name": "spender",
+          "type": "address"
+        }
+      ],
+      "data": [
+        {
+          "name": "amount",
+          "type": "i128",
+          "doc": "Approved amount, in stroops."
+        },
+        {
+          "name": "expiration_ledger",
+          "type": "u32"
+        }
+      ]
+    }
+  ],
+  "attester": "GDWYV22YU5ZABTYBBOZCDOUJMIZYSIIO7EZNY2XC5WHAD5AYYHNL5BJ3",
+  "createdAt": "2026-08-01T00:00:00Z"
+}
