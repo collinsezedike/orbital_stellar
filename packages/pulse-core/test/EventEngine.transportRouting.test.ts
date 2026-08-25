@@ -473,5 +473,50 @@ describe("EventEngine transport routing", () => {
 
       await engine.stop();
     });
+
+    it("logs a warning for a unified event whose topic[0] isn't a decodable symbol", async () => {
+      vi.useFakeTimers();
+      SorobanRpcClient.setCachedNetwork({ passphrase: TESTNET_PASSPHRASE, protocolVersion: 23 });
+
+      let served = false;
+      globalThis.fetch = makeFetch(() => {
+        if (served) return { events: [], cursor: "0002", latestLedger: 100 };
+        served = true;
+        return {
+          events: [
+            {
+              id: "0001",
+              pagingToken: "0001",
+              type: "contract",
+              ledger: 100,
+              ledgerClosedAt: "2026-08-01T00:00:00Z",
+              contractId: "CCONTRACT",
+              topic: ["not-valid-base64-xdr"],
+              value: i128Value(1n),
+            },
+          ],
+          cursor: "0001",
+          latestLedger: 100,
+        };
+      });
+
+      const warn = vi.fn();
+      const engine = new EventEngine({
+        network: "testnet",
+        ingestion: "unified",
+        soroban: { rpcUrl: "https://fake-rpc.example", unifiedEvents: true },
+        logger: { info: vi.fn(), warn, error: vi.fn() },
+      });
+
+      engine.start();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining("isn't a decodable symbol"),
+        expect.objectContaining({ eventId: "0001" }),
+      );
+
+      await engine.stop();
+    });
   });
 });

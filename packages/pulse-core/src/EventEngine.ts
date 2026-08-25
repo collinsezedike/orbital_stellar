@@ -1363,6 +1363,13 @@ export class EventEngine {
     const event = { topic, value: raw.value } as Pick<RawSorobanEvent, "topic" | "value">;
     const ledgerClosedAt = raw.ledgerClosedAt ?? new Date().toISOString();
     const symbol = this.peekUnifiedEventSymbol(topic[0]);
+    if (symbol === undefined) {
+      this.log.warn(
+        "[pulse-core] unified transport received an event whose topic[0] isn't a decodable symbol.",
+        { eventId: raw.id },
+      );
+      return;
+    }
 
     const makeError = (reason: string) => new Error(reason);
 
@@ -1418,8 +1425,10 @@ export class EventEngine {
           return;
         }
         default:
-          // clawback, fee, or an unrecognized symbol - not wired for #12's
-          // routing scope (see this method's docstring).
+          // clawback, fee, or any other well-formed-but-unhandled symbol -
+          // not wired for #12's routing scope (see this method's docstring).
+          // A malformed/undecodable topic[0] is caught above, before this
+          // switch, and logged there instead.
           return;
       }
     } catch (err) {
