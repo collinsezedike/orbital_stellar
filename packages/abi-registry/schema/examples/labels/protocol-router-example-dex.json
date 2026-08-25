@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0.0",
+  "contractId": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+  "label": "Example DEX Router",
+  "entityType": "protocol",
+  "confidence": 0.5,
+  "sources": [
+    "https://github.com/orbital-stellar/orbital_stellar/blob/main/ROADMAP.md",
+    "https://github.com/orbital-stellar/orbital_stellar/blob/main/packages/abi-registry/schemas/label.schema.json"
+  ],
+  "verifiedAt": "2026-08-01T00:00:00Z",
+  "submittedBy": "@orbital-example",
+  "notes": "ILLUSTRATIVE EXAMPLE - not a real deployed protocol. The contract ID is the placeholder address used throughout this repository's docs, including the swap.executed taxonomy example. Shows the shape a protocol-router label submission takes: entityType \"protocol\", confidence 0.5 for community consensus with partial evidence, and multiple source URLs. A real submission would name an actual deployed router and cite that protocol's own documentation."
+}
