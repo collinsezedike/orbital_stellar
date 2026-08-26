@@ -270,6 +270,8 @@ curl -s -X POST https://mainnet.sorobanrpc.com \
 
 ## Related reading
 
+- [`semantic-layer/submitting.md`](./semantic-layer/submitting.md) — how to
+  submit a taxonomy entry or entity label, and what review checks apply.
 - [`ROADMAP.md`](../ROADMAP.md) — Wave 2.3 Semantic layer
 - [`docs/open-source-policy.md`](./open-source-policy.md) — taxonomy/labels as open data
 - [`STABILITY.md`](../STABILITY.md) — when wire shapes may change

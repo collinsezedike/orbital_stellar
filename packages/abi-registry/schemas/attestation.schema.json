@@ -4,17 +4,35 @@
   "title": "AttestationDocument",
   "description": "A claim (SEP §7.3) that a deployed contract emits a given SEP-48-shaped event schema. Exists for contracts deployed before SEP-48/CAP-67, which have no embedded contract spec this could otherwise be derived from. Signature-envelope concerns (who signed it, tamper detection) are a separate layer - see SEP §7.4.",
   "type": "object",
-  "required": ["contractId", "wasmHash", "events", "attester", "createdAt"],
+  "required": ["contractId", "executableKind", "events", "attester", "createdAt"],
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": { "executableKind": { "const": "wasm" } }
+      },
+      "then": {
+        "required": ["wasmHash"]
+      },
+      "else": {
+        "not": { "required": ["wasmHash"] }
+      }
+    }
+  ],
   "properties": {
     "contractId": {
       "type": "string",
       "description": "Bech32-encoded Soroban contract address (C…) the attestation is about.",
       "pattern": "^C[A-Z2-7]{55}$"
     },
+    "executableKind": {
+      "type": "string",
+      "description": "What kind of executable the attested contract runs, mirroring the on-chain ContractExecutable XDR union. \"wasm\" contracts have a deployed WASM blob and a wasmHash; \"stellarAsset\" contracts (SACs) run the network's built-in executable and have no WASM to hash.",
+      "enum": ["wasm", "stellarAsset"]
+    },
     "wasmHash": {
       "type": "string",
-      "description": "Hex-encoded SHA-256 hash of the attested contract's deployed WASM bytecode.",
+      "description": "Hex-encoded SHA-256 hash of the attested contract's deployed WASM bytecode. Required when executableKind is \"wasm\"; must be absent when it's \"stellarAsset\".",
       "pattern": "^[0-9a-fA-F]{64}$"
     },
     "events": {

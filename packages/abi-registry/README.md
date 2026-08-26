@@ -83,7 +83,8 @@ import type { AttestationDocument } from "@orbital-stellar/abi-registry";
 
 const document: AttestationDocument = {
   contractId: "C...",
-  wasmHash: "…", // hex-encoded SHA-256 of the deployed WASM
+  executableKind: "wasm", // or "stellarAsset" for a SAC - see below
+  wasmHash: "…", // hex-encoded SHA-256 of the deployed WASM; omit entirely for a SAC
   events: [
     /* SEP-48-shaped event definitions - see AttestationDocument["events"] */
   ],
@@ -105,7 +106,7 @@ const verdict = verifyAttestation(envelope, { expectedWasmHash: onChainWasmHash 
 1. `envelope.publicKey` is a well-formed Stellar account address (`G...`).
 2. `envelope.publicKey` matches `envelope.payload.attester` - nobody but the claimed attester can produce a valid envelope for a given document.
 3. `envelope.signature` is a valid ed25519 signature by `envelope.publicKey` over the payload's canonical JSON - this is what catches tampering, since changing even one byte of the payload changes its canonical serialization.
-4. If `options.expectedWasmHash` is given (the caller's own on-chain lookup - this module makes no network calls), it matches `envelope.payload.wasmHash`.
+4. If `options.expectedWasmHash` is given (the caller's own on-chain lookup - this module makes no network calls): `envelope.payload.executableKind` must be `"wasm"` (a Stellar Asset Contract has no WASM hash to check against), and it must match `envelope.payload.wasmHash`.
 
 ### `RegistryPublisher`
 
