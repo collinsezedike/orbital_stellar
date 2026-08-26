@@ -53,6 +53,9 @@ importers:
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
+      '@orbital-stellar/abi-registry':
+        specifier: workspace:*
+        version: link:../../packages/abi-registry
       '@orbital-stellar/pulse-core':
         specifier: workspace:*
         version: link:../../packages/pulse-core
