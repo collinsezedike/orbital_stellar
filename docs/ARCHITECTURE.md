@@ -330,6 +330,25 @@ For `engine.cursor_expired` notifications, the payload includes:
 Consumers can subscribe to these via `watcher.on("engine.reconnecting", …)`
 to surface UI banners or write structured logs.
 
+### In-process backpressure and bounded queues
+
+To protect consumers from unbounded memory growth when a watcher is slow or
+there's a burst of ledger activity, `EventEngine` now maintains a bounded
+internal queue. Configuration lives in `CoreConfig.queue` and exposes three
+knobs:
+
+- **`highWaterMark`**: the maximum queued events before backpressure triggers (default: 10000).
+- **`lowWaterMark`**: the level below which backpressure is considered cleared (default: 50% of highWaterMark).
+- **`policy`**: one of `pause` (default), `drop-oldest`, or `drop-newest`.
+
+When the high-water mark is crossed the engine emits `engine.backpressure`
+with `{ active: true, queued, policy }`. The default `pause` policy stops
+the underlying sources (Horizon and Soroban) until the queue drains below the
+low-water mark, at which point `engine.backpressure` with `{ active: false }`
+is emitted and sources are resumed. `drop-oldest` and `drop-newest` shed
+events deterministically instead of pausing the source; these are useful for
+best-effort dashboards where availability is preferred over perfect delivery.
+
 ---
 
 ## 6. Webhook delivery internals
@@ -566,3 +585,47 @@ orbital_stellar/
   [`pulse-webhooks`](../packages/pulse-webhooks/README.md),
   [`pulse-notify`](../packages/pulse-notify/README.md),
   [`abi-registry`](../packages/abi-registry/README.md)
+
+
+## Performance benchmarks
+
+The hot path of every event is normalization plus, for Soroban contract events,
+spec resolution and decoding. A change that halves throughput there would ship
+unnoticed without a guard, so `packages/pulse-core/bench/` holds a benchmark
+suite that CI runs on every packages change and gates on regressions.
+
+### What is measured
+
+The suite runs four things against the recorded CAP-67 fixture corpus in
+`packages/pulse-core/test/fixtures/cap67/`, so the numbers reflect pulse-core's
+own work rather than network time:
+
+- **normalize/raw-to-normalized** - a raw RPC event through `normalizeContractEvent`.
+- **decode/cap67-transfer** - the CAP-67 unified `transfer` decoder over the
+  transfer fixtures (bare `i128` and `SCMap`-with-memo forms).
+- **watcher/fan-out-1, -100, -1000** - `Watcher.emit` dispatch at each fan-out width.
+- **cursor/memory-set** and **cursor/memory-set-many-100** - cursor write cost
+  for the in-memory adapter, single-key and batched.
+
+### Running it
+`bench` exits non-zero when any case is more than 20% slower than the committed
+baseline, or when a baselined case has gone missing. Improvements never fail.
+The harness is dependency-free (`node:perf_hooks` only) and reports the median of
+many batched samples, so a single GC pause does not trip the gate.
+
+### The baseline and how to update it
+
+`packages/pulse-core/bench/baseline.json` is the committed reference. It records
+each case's throughput alongside the machine the numbers came from, because a
+throughput figure is meaningless without the hardware behind it.
+
+Updating the baseline is deliberate. When a change legitimately moves the
+numbers - a faster algorithm, or an accepted cost for new behavior - regenerate
+the baseline with `bench:update` and **justify the change in the pull request
+body**: what moved, why, and roughly by how much. A baseline bump without a
+reason in the PR is treated as a red flag in review, because it is the one way a
+real regression can be laundered into the reference.
+
+The current committed baseline was generated on a developer workstation and is
+noisier than a dedicated runner would produce; regenerate it on stable hardware
+when convenient and record that environment here.
