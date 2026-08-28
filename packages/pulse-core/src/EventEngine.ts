@@ -23,6 +23,8 @@ import { decodeUnifiedBurn } from "./cap67/decodeBurn.js";
 import { decodeUnifiedSetAuthorized } from "./cap67/decodeSetAuthorized.js";
 import { normalizeUnifiedSetAuthorized } from "./cap67/normalizeSetAuthorized.js";
 import { issuerFromAsset, toPaymentAddress } from "./cap67/normalizeAssetEvent.js";
+import { DedupeWindow, deriveDedupeKey } from "./dedupe.js";
+import type { DedupeEventRef } from "./dedupe.js";
 import type {
   AccountCreatedEvent,
   AccountMergeEvent,
@@ -158,6 +160,15 @@ const HORIZON_OP_TYPE_TO_FAMILY: Readonly<Record<string, EventFamily>> = {
   set_trust_line_flags: "trustlineAuth",
 };
 
+/**
+ * Bounded capacity of the dedupe window (issue 6.13). Sized generously
+ * relative to the narrow routing-transition window it exists to cover -
+ * this is not meant to catch duplicates across the entire runtime, only
+ * ones observed close together while a mode switch or `"auto"` fallback
+ * resolves.
+ */
+const DEDUPE_WINDOW_CAPACITY = 1024;
+
 const noop: Logger = { info: () => {}, warn: () => {}, error: () => {} };
 
 /**
@@ -264,6 +275,23 @@ export class EventEngine {
    * by `dispatchUnifiedEvent()`'s unified-side dispatch gate.
    */
   private effectiveIngestion: "unified" | "horizon" = "horizon";
+  /**
+   * Recently-seen dedupe keys (issue 6.13), guarding against the same
+   * on-chain movement reaching a `Watcher` twice during a routing
+   * transition - once via Horizon, once via the unified transport. Checked
+   * once, at the top of {@link route}.
+   */
+  private readonly dedupeWindow = new DedupeWindow(DEDUPE_WINDOW_CAPACITY);
+  /**
+   * Associates a dedupe key with the exact event object it was derived for,
+   * without widening any public event type's shape. Set by the Horizon
+   * `onmessage` handler and by `dispatchUnifiedEvent()` for the two families
+   * with a unified equivalent (`payment`, `trustlineAuth`); every other
+   * event is never a duplication risk (only one transport ever produces it)
+   * and is never given an entry here. A `WeakMap` needs no manual cleanup -
+   * an entry disappears once the event object itself is no longer referenced.
+   */
+  private readonly dedupeKeyByEvent = new WeakMap<object, string>();
   /**
    * Optional live Soroban subscriber. Wired only when the engine is configured
    * for live contract streaming; otherwise undefined, and the guarded calls
@@ -1101,6 +1129,52 @@ export class EventEngine {
   private horizonEventFamily(record: unknown): EventFamily | undefined {
     if (!this.isRecord(record) || typeof record.type !== "string") return undefined;
     return HORIZON_OP_TYPE_TO_FAMILY[record.type];
+  }
+
+  /**
+   * Derives a {@link DedupeEventRef} from a raw Horizon operation record
+   * (issue 6.13), for the two families - `payment`, `trustlineAuth` - that
+   * could also arrive via the unified transport.
+   *
+   * `index` uses the operation's own Horizon `id` as-is. Horizon's `id` is
+   * the operation-level TOID (total-order ID; ledger, transaction, and
+   * operation position packed into one value) - and Soroban RPC's unified
+   * event `id` carries that same TOID as its leading segment (see
+   * {@link deriveUnifiedDedupeRef}). Treating both as an opaque shared
+   * number this way means neither side needs to decode the TOID's internal
+   * bit layout to agree on it. If that assumption is ever wrong for some
+   * record shape, the two refs simply fail to collide - the dedupe window
+   * has nothing to suppress, which is the safe failure direction (a
+   * duplicate slips through, not a legitimate event dropped).
+   *
+   * Returns `undefined` when the record lacks either field, so the caller
+   * skips the dedupe check entirely for that event rather than guessing.
+   */
+  private deriveHorizonDedupeRef(record: unknown): DedupeEventRef | undefined {
+    if (!this.isRecord(record)) return undefined;
+    const txHash = record.transaction_hash;
+    const id = record.id;
+    if (typeof txHash !== "string" || typeof id !== "string") return undefined;
+    const index = Number(id);
+    if (!Number.isFinite(index)) return undefined;
+    return { txHash, index };
+  }
+
+  /**
+   * Derives a {@link DedupeEventRef} from a raw unified-transport event
+   * (issue 6.13). `index` is the leading segment of the event's own `id`
+   * (Soroban RPC's documented `<toid>-<eventIndex>` format) - the same
+   * operation-level TOID {@link deriveHorizonDedupeRef} reads directly off
+   * a Horizon record's `id`. See that method's doc for the shared-opaque-
+   * value reasoning and its safe-failure direction.
+   */
+  private deriveUnifiedDedupeRef(raw: SorobanRpcEvent): DedupeEventRef | undefined {
+    if (typeof raw.txHash !== "string") return undefined;
+    const prefix = raw.id.split("-")[0];
+    if (prefix === undefined) return undefined;
+    const index = Number(prefix);
+    if (!Number.isFinite(index)) return undefined;
+    return { txHash: raw.txHash, index };
   }
 
   async healthCheck(thresholdMs = 5 * 60 * 1000): Promise<HealthCheckResult> {
