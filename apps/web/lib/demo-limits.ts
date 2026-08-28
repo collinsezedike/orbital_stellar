@@ -11,6 +11,8 @@ export const DEMO_LIMITS = {
   streamDurationMs: 25_000,
   /** One webhook-sample signing call per IP every N ms. */
   webhookCooldownMs: 20_000,
+  /** One registry-data (taxonomy/labels/spec) lookup per IP every N ms. */
+  registryDataCooldownMs: 2_000,
   /**
    * One "fire test event" on-chain invocation per IP every N ms.
    * Enforced via shared Upstash Redis in `fireEventRateLimit.ts`.
@@ -22,6 +24,7 @@ export const DEMO_LIMITS = {
 
 const activeStreams = new Map<string, number>();
 const lastWebhookAt = new Map<string, number>();
+const lastRegistryDataAt = new Map<string, number>();
 
 type EnvelopeBase = { error: "demo_limit_reached"; upgradeUrl: string };
 
@@ -88,6 +91,29 @@ export function checkWebhookCooldown(
     };
   }
   lastWebhookAt.set(ip, now);
+  return { ok: true };
+}
+
+export function checkRegistryDataCooldown(
+  ip: string,
+): { ok: true } | { ok: false; body: RateLimitEnvelope } {
+  const now = Date.now();
+  const last = lastRegistryDataAt.get(ip);
+  if (last !== undefined && now - last < DEMO_LIMITS.registryDataCooldownMs) {
+    const retryAfterMs = DEMO_LIMITS.registryDataCooldownMs - (now - last);
+    return {
+      ok: false,
+      body: {
+        error: "demo_limit_reached",
+        upgradeUrl: DEMO_LIMITS.upgradeUrl,
+        reason: "rate_limit",
+        message:
+          "Registry data lookups are rate-limited on the demo. Sign up for Orbital Cloud for production use.",
+        retryAfterMs,
+      },
+    };
+  }
+  lastRegistryDataAt.set(ip, now);
   return { ok: true };
 }
 
