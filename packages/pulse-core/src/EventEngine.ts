@@ -1462,56 +1462,62 @@ export class EventEngine {
     }
 
     const makeError = (reason: string) => new Error(reason);
+    // Dedupe (issue 6.13): `payment`/`trustlineAuth` are the only families
+    // that could also arrive via Horizon, so this is the only ref worth
+    // deriving here - every symbol below produces one of those two.
+    const dedupeRef = this.deriveUnifiedDedupeRef(raw);
 
     try {
       switch (symbol) {
         case "transfer": {
           const transfer = decodeUnifiedTransfer(event);
           const asset = transfer.asset === "native" ? "XLM" : transfer.asset;
-          this.route(
-            withTimestampDate({
-              type: "unknown",
-              to: toPaymentAddress(transfer.to, makeError),
-              from: toPaymentAddress(transfer.from, makeError),
-              amount: fromBigInt(transfer.amount),
-              asset,
-              timestamp: ledgerClosedAt,
-              ...(transfer.memo !== undefined ? { memo: transfer.memo } : {}),
-            }),
-          );
+          const pending = withTimestampDate({
+            type: "unknown" as const,
+            to: toPaymentAddress(transfer.to, makeError),
+            from: toPaymentAddress(transfer.from, makeError),
+            amount: fromBigInt(transfer.amount),
+            asset,
+            timestamp: ledgerClosedAt,
+            ...(transfer.memo !== undefined ? { memo: transfer.memo } : {}),
+          });
+          if (dedupeRef) this.dedupeKeyByEvent.set(pending, deriveDedupeKey(dedupeRef));
+          this.route(pending);
           return;
         }
         case "mint": {
           const mint = decodeUnifiedMint(event);
-          this.route(
-            withTimestampDate({
-              type: "unknown",
-              to: toPaymentAddress(mint.to, makeError),
-              from: issuerFromAsset(mint.asset, makeError),
-              amount: fromBigInt(mint.amount),
-              asset: mint.asset,
-              timestamp: ledgerClosedAt,
-            }),
-          );
+          const pending = withTimestampDate({
+            type: "unknown" as const,
+            to: toPaymentAddress(mint.to, makeError),
+            from: issuerFromAsset(mint.asset, makeError),
+            amount: fromBigInt(mint.amount),
+            asset: mint.asset,
+            timestamp: ledgerClosedAt,
+          });
+          if (dedupeRef) this.dedupeKeyByEvent.set(pending, deriveDedupeKey(dedupeRef));
+          this.route(pending);
           return;
         }
         case "burn": {
           const burn = decodeUnifiedBurn(event);
-          this.route(
-            withTimestampDate({
-              type: "unknown",
-              to: issuerFromAsset(burn.asset, makeError),
-              from: toPaymentAddress(burn.from, makeError),
-              amount: fromBigInt(burn.amount),
-              asset: burn.asset,
-              timestamp: ledgerClosedAt,
-            }),
-          );
+          const pending = withTimestampDate({
+            type: "unknown" as const,
+            to: issuerFromAsset(burn.asset, makeError),
+            from: toPaymentAddress(burn.from, makeError),
+            amount: fromBigInt(burn.amount),
+            asset: burn.asset,
+            timestamp: ledgerClosedAt,
+          });
+          if (dedupeRef) this.dedupeKeyByEvent.set(pending, deriveDedupeKey(dedupeRef));
+          this.route(pending);
           return;
         }
         case "set_authorized": {
           const setAuthorized = decodeUnifiedSetAuthorized(event);
-          this.route(normalizeUnifiedSetAuthorized(setAuthorized, ledgerClosedAt));
+          const normalized = normalizeUnifiedSetAuthorized(setAuthorized, ledgerClosedAt);
+          if (dedupeRef) this.dedupeKeyByEvent.set(normalized, deriveDedupeKey(dedupeRef));
+          this.route(normalized);
           return;
         }
         default:
