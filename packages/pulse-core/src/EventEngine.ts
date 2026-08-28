@@ -1763,6 +1763,15 @@ export class EventEngine {
           return;
         }
 
+        // Dedupe (issue 6.13): only `payment`/`trustlineAuth` can arrive via
+        // either transport, so only those need a key at all.
+        if (family === "payment" || family === "trustlineAuth") {
+          const ref = this.deriveHorizonDedupeRef(record);
+          if (ref) {
+            this.dedupeKeyByEvent.set(event, deriveDedupeKey(ref));
+          }
+        }
+
         this.enqueueEvent(event);
       },
       onerror: (error) => {
