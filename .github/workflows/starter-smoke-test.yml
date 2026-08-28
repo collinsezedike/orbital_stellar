@@ -1,0 +1,95 @@
+name: Starter smoke tests
+
+# Proves the acceptance criterion in words: each starter must install from
+# npm, not from this monorepo's pnpm workspace links. Each job copies its
+# starter to a directory outside the repo (so no pnpm-workspace.yaml is
+# discoverable above it) and installs with plain npm against the real
+# registry - the same thing `pnpm create`-style standalone usage does.
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - 'examples/next-starter/**'
+      - 'examples/express-starter/**'
+      - '.github/workflows/starter-smoke-test.yml'
+  pull_request:
+    branches: ["**"]
+    paths:
+      - 'examples/next-starter/**'
+      - 'examples/express-starter/**'
+      - '.github/workflows/starter-smoke-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  next-starter-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - name: Copy starter outside the workspace
+        run: cp -r examples/next-starter "$RUNNER_TEMP/next-starter-smoke"
+
+      - name: Install from npm (no workspace links)
+        working-directory: ${{ runner.temp }}/next-starter-smoke
+        run: npm install
+
+      - name: Typecheck
+        working-directory: ${{ runner.temp }}/next-starter-smoke
+        run: npm run typecheck
+
+      - name: Build (boots the App Router build pipeline)
+        working-directory: ${{ runner.temp }}/next-starter-smoke
+        env:
+          STELLAR_ADDRESSES: GCIX4IU5CLPZ5FFIZQ2NP54WUTXHIBLN6URD2LCRI4G5MB2EBKNV2BKZ
+          NEXT_PUBLIC_STELLAR_NETWORK: testnet
+        run: npm run build
+
+  express-starter-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - name: Copy starter outside the workspace
+        run: cp -r examples/express-starter "$RUNNER_TEMP/express-starter-smoke"
+
+      - name: Install from npm (no workspace links)
+        working-directory: ${{ runner.temp }}/express-starter-smoke
+        run: npm install
+
+      - name: Typecheck
+        working-directory: ${{ runner.temp }}/express-starter-smoke
+        run: npm run typecheck
+
+      - name: Build
+        working-directory: ${{ runner.temp }}/express-starter-smoke
+        run: npm run build
+
+      - name: Boot and probe /healthz
+        working-directory: ${{ runner.temp }}/express-starter-smoke
+        env:
+          STELLAR_ADDRESSES: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+          STELLAR_NETWORK: testnet
+          WEBHOOK_SECRET: ci-smoke-test-secret-not-a-real-credential-0000
+          PORT: 3000
+        run: |
+          node dist/index.js &
+          pid=$!
+          trap "kill $pid" EXIT
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:3000/healthz > /dev/null; then
+              echo "healthz responded after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "ERROR: /healthz never responded within 30s"
+          exit 1
