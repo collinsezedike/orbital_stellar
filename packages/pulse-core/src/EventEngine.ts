@@ -2882,6 +2882,15 @@ export class EventEngine {
   }
 
   private route(event: Timestamped<NormalizedEventOrPending>): void {
+    // Dedupe (issue 6.13): suppress a second delivery of the same on-chain
+    // movement observed via both transports during a routing transition.
+    // Only `payment`/`trustlineAuth`-family events ever carry a key at all
+    // (see `dedupeKeyByEvent`'s doc) - every other event is a no-op here.
+    const dedupeKey = this.dedupeKeyByEvent.get(event);
+    if (dedupeKey !== undefined && this.dedupeWindow.seenBefore(dedupeKey)) {
+      return;
+    }
+
     // Check if Soroban source is paused for contract events
     if (
       (event.type === "contract.invoked" || event.type === "contract.emitted") &&
