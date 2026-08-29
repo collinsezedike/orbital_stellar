@@ -114,6 +114,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      - name: Build abi-registry
+        run: pnpm tsc -p packages/abi-registry/tsconfig.json
+      - name: Build pulse-core
+        # anchor-sdk imports @orbital-stellar/pulse-core (WebAuth, status types).
+        run: pnpm tsc -p packages/pulse-core/tsconfig.json
       - name: Build anchor-sdk
         run: pnpm tsc -p packages/anchor-sdk/tsconfig.json
 
