@@ -1,9 +1,15 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const getResolvedSpec = vi.fn();
-const getSpec = vi.fn();
-const getSpecByVersion = vi.fn();
+// `vi.hoisted` so these exist before `vi.mock`'s factory runs - the route
+// now constructs its default-chain client at module load, so importing it
+// below resolves the (mocked) module immediately, ahead of any plain
+// top-level `const` in this file.
+const { getResolvedSpec, getSpec, getSpecByVersion } = vi.hoisted(() => ({
+  getResolvedSpec: vi.fn(),
+  getSpec: vi.fn(),
+  getSpecByVersion: vi.fn(),
+}));
 
 vi.mock("@orbital-stellar/abi-registry", () => ({
   createDefaultAbiRegistryClient: vi.fn(() => ({ getResolvedSpec })),

@@ -34,9 +34,15 @@ type DataFile<T> = {
   records: T[];
 };
 
-// `data/` lives at the repo root, two levels above `apps/web` (this app's
-// `process.cwd()`).
-const dataDir = path.join(process.cwd(), "..", "..", "data");
+// These routes are dynamic (they read `request.nextUrl`/`clientIp`), so this
+// read happens per request in the deployed function, not at build time.
+// Reaching two levels above `apps/web` for the repo-root `data/` directory
+// works in CI (full repo checked out) but not in production: Next's file
+// tracing has no way to discover a dynamically-constructed path outside the
+// app root, so it isn't bundled and the read 404s at runtime. `apps/web/public/data/`
+// is the in-app copy `scripts/generate-open-data.mjs` already writes
+// alongside `data/`, kept in sync by `packages/abi-registry/test/openData.test.ts`.
+const dataDir = path.join(process.cwd(), "public", "data");
 
 let taxonomy: TaxonomyRecord[] | null = null;
 let labels: LabelRecord[] | null = null;
