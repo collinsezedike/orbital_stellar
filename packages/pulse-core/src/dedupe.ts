@@ -22,8 +22,17 @@
 export interface DedupeEventRef {
   /** The transaction hash the event/operation belongs to. */
   txHash: string;
-  /** Position within the transaction. */
-  index: number;
+  /**
+   * Position within the transaction, as a decimal string rather than
+   * `number`. Horizon's operation `id` (and the unified stream's per-event
+   * `id` prefix) is a TOID - `ledgerSeq * 2^32 + txOrder * 2^12 + opIndex` -
+   * which exceeds `Number.MAX_SAFE_INTEGER` past ledger ~2,097,152. Both
+   * testnet and pubnet are well past that today, so round-tripping through
+   * `Number` silently collapses distinct operations in the same transaction
+   * onto the same key. Callers should derive this with `BigInt(id).toString()`,
+   * never `Number(id)`.
+   */
+  index: string;
 }
 
 /**

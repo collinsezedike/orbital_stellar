@@ -1140,12 +1140,13 @@ export class EventEngine {
    * the operation-level TOID (total-order ID; ledger, transaction, and
    * operation position packed into one value) - and Soroban RPC's unified
    * event `id` carries that same TOID as its leading segment (see
-   * {@link deriveUnifiedDedupeRef}). Treating both as an opaque shared
-   * number this way means neither side needs to decode the TOID's internal
-   * bit layout to agree on it. If that assumption is ever wrong for some
-   * record shape, the two refs simply fail to collide - the dedupe window
-   * has nothing to suppress, which is the safe failure direction (a
-   * duplicate slips through, not a legitimate event dropped).
+   * {@link deriveUnifiedDedupeRef}). Treating both as an opaque shared value
+   * this way means neither side needs to decode the TOID's internal bit
+   * layout to agree on it. It must stay a `BigInt`-derived string, never
+   * `Number(id)`: a TOID exceeds `Number.MAX_SAFE_INTEGER` past ledger
+   * ~2,097,152, which both testnet and pubnet are well past today, and
+   * `Number()` silently collapses distinct operations in the same
+   * transaction onto the same key rather than just losing precision benignly.
    *
    * Returns `undefined` when the record lacks either field, so the caller
    * skips the dedupe check entirely for that event rather than guessing.
@@ -1155,8 +1156,12 @@ export class EventEngine {
     const txHash = record.transaction_hash;
     const id = record.id;
     if (typeof txHash !== "string" || typeof id !== "string") return undefined;
-    const index = Number(id);
-    if (!Number.isFinite(index)) return undefined;
+    let index: string;
+    try {
+      index = BigInt(id).toString();
+    } catch {
+      return undefined;
+    }
     return { txHash, index };
   }
 
@@ -1166,14 +1171,21 @@ export class EventEngine {
    * (Soroban RPC's documented `<toid>-<eventIndex>` format) - the same
    * operation-level TOID {@link deriveHorizonDedupeRef} reads directly off
    * a Horizon record's `id`. See that method's doc for the shared-opaque-
-   * value reasoning and its safe-failure direction.
+   * value reasoning and why it must round-trip through `BigInt`, not
+   * `Number`. `BigInt(...).toString()` also normalizes the unified stream's
+   * zero-padded TOID prefix against Horizon's unpadded form, so the two
+   * sides agree even though their wire representations differ.
    */
   private deriveUnifiedDedupeRef(raw: SorobanRpcEvent): DedupeEventRef | undefined {
     if (typeof raw.txHash !== "string") return undefined;
     const prefix = raw.id.split("-")[0];
     if (prefix === undefined) return undefined;
-    const index = Number(prefix);
-    if (!Number.isFinite(index)) return undefined;
+    let index: string;
+    try {
+      index = BigInt(prefix).toString();
+    } catch {
+      return undefined;
+    }
     return { txHash: raw.txHash, index };
   }
 

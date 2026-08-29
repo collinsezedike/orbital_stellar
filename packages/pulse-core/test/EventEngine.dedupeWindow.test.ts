@@ -205,6 +205,45 @@ describe("EventEngine dedupe window wiring", () => {
     await engine.stop();
   });
 
+  it("delivers two payment operations in the same transaction at a realistic pubnet ledger height", async () => {
+    // Regression for a real bug: deriveHorizonDedupeRef used to round-trip
+    // the operation TOID through `Number`, which loses precision past ledger
+    // ~2,097,152 - both testnet and pubnet are long past that. At today's
+    // pubnet height (~64.18M), two operations in one transaction collapse
+    // onto the identical `Number()`-derived index, so the second was
+    // silently dropped as a false-positive duplicate - exactly the shape of
+    // a batched payout. `BigInt(id).toString()` keeps them distinct.
+    SorobanRpcClient.setCachedNetwork({ passphrase: TESTNET_PASSPHRASE, protocolVersion: 23 });
+    globalThis.fetch = makeFetch();
+
+    const to = Keypair.random().publicKey();
+    const from = Keypair.random().publicKey();
+    const txHash = "e".repeat(64);
+    const ledger = 64_182_674n;
+    const txOrder = 7n;
+    const opId0 = (ledger * 2n ** 32n + txOrder * 2n ** 12n + 0n).toString();
+    const opId1 = (ledger * 2n ** 32n + txOrder * 2n ** 12n + 1n).toString();
+
+    // Sanity check on the fixture itself: both TOIDs really do collapse to
+    // the same value under Number(), which is exactly what made the bug
+    // invisible to a naive review of the diff.
+    expect(Number(opId0)).toBe(Number(opId1));
+
+    const engine = new EventEngine({ network: "testnet" });
+    const watcher = engine.subscribe(to);
+    const received = vi.fn();
+    watcher.on("payment.received", received);
+
+    engine.start();
+
+    latestStream().handlers.onmessage(horizonPaymentRecord(txHash, opId0, to, from));
+    latestStream().handlers.onmessage(horizonPaymentRecord(txHash, opId1, to, from));
+
+    expect(received).toHaveBeenCalledTimes(2);
+
+    await engine.stop();
+  });
+
   it("the wired window is bounded - an evicted key no longer suppresses a repeat", async () => {
     SorobanRpcClient.setCachedNetwork({ passphrase: TESTNET_PASSPHRASE, protocolVersion: 23 });
     globalThis.fetch = makeFetch();
