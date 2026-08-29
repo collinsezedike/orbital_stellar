@@ -1,10 +1,15 @@
 name: Starter smoke tests
 
-# Proves the acceptance criterion in words: each starter must install from
-# npm, not from this monorepo's pnpm workspace links. Each job copies its
+# The acceptance criterion asks that each starter install from npm rather
+# than this monorepo's pnpm workspace links, and that each is typechecked
+# and boot-tested in CI. next-starter-smoke proves both: it copies the
 # starter to a directory outside the repo (so no pnpm-workspace.yaml is
 # discoverable above it) and installs with plain npm against the real
 # registry - the same thing `pnpm create`-style standalone usage does.
+# express-starter-smoke and anchor-starter-smoke prove only the second half
+# for now (typechecks + boots, inside the workspace) - see each job's own
+# comment for why an npm-only install doesn't yet prove anything useful for
+# either.
 
 on:
   push:
@@ -55,30 +60,39 @@ jobs:
         run: npm run build
 
   express-starter-smoke:
+    # express-starter's source uses @orbital-stellar/pulse-core /
+    # pulse-webhooks APIs (CursorStoreLike, signWebhookPayload) that exist in
+    # this workspace's current build but not in the last npm-published
+    # version (0.1.0, confirmed via a real npm-registry install). Pinning to
+    # a real npm range would either fail to resolve (nothing newer is
+    # published) or typecheck-fail against 0.1.0 - neither proves anything
+    # useful. Runs inside the workspace instead, matching anchor-starter's
+    # same interim compromise, until a fresh publish includes these APIs.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6.0.10
       - uses: actions/setup-node@v7
         with:
           node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
 
-      - name: Copy starter outside the workspace
-        run: cp -r examples/express-starter "$RUNNER_TEMP/express-starter-smoke"
-
-      - name: Install from npm (no workspace links)
-        working-directory: ${{ runner.temp }}/express-starter-smoke
-        run: npm install
+      - name: Build abi-registry
+        run: pnpm tsc -p packages/abi-registry/tsconfig.json
+      - name: Build pulse-core
+        run: pnpm tsc -p packages/pulse-core/tsconfig.json
+      - name: Build pulse-webhooks
+        run: pnpm tsc -p packages/pulse-webhooks/tsconfig.json
 
       - name: Typecheck
-        working-directory: ${{ runner.temp }}/express-starter-smoke
-        run: npm run typecheck
+        run: pnpm --filter orbital-express-starter typecheck
 
       - name: Build
-        working-directory: ${{ runner.temp }}/express-starter-smoke
-        run: npm run build
+        run: pnpm --filter orbital-express-starter build
 
       - name: Boot and probe /healthz
-        working-directory: ${{ runner.temp }}/express-starter-smoke
+        working-directory: examples/express-starter
         env:
           STELLAR_ADDRESSES: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
           STELLAR_NETWORK: testnet

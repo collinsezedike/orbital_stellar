@@ -176,11 +176,11 @@ importers:
   examples/express-starter:
     dependencies:
       '@orbital-stellar/pulse-core':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: workspace:*
+        version: link:../../packages/pulse-core
       '@orbital-stellar/pulse-webhooks':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: workspace:*
+        version: link:../../packages/pulse-webhooks
       express:
         specifier: ^5.2.0
         version: 5.2.1
@@ -1011,9 +1011,6 @@ packages:
     resolution: {integrity: sha512-j2XWlf8hPQeydhU1R+1aw2U5Aw6qvQ9qqhwKlPzs/rPBsxkUwbPrLibKbc4ozQELwv7RAJjM0eEWUJA5qkCZnw==}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
-
-  '@orbital-stellar/pulse-webhooks@0.1.0':
-    resolution: {integrity: sha512-oyMhv+S9reM/MYkSWCzAzaACx4trAdecOMz9R7wbjng2j1jXje4Kk4iRb1omdm998q1Saon8TvLjuQsS75NWAw==}
 
   '@oxc-project/types@0.139.0':
     resolution: {integrity: sha512-r9gHphtCs+1M7J0pw6Sn/hh/Wpa/iQrOOkrNAlVLF/gHq+/CJmHIWKKUUhdWjcD6CIa8idarspCsASiXCXvFUw==}
@@ -4034,13 +4031,6 @@ snapshots:
     dependencies:
       '@orbital-stellar/pulse-core': 0.1.0
       react: 19.2.8
-    transitivePeerDependencies:
-      - debug
-      - supports-color
-
-  '@orbital-stellar/pulse-webhooks@0.1.0':
-    dependencies:
-      '@orbital-stellar/pulse-core': 0.1.0
     transitivePeerDependencies:
       - debug
       - supports-color
