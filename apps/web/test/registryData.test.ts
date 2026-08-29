@@ -122,13 +122,30 @@ describe("registry-data rate limiting", () => {
     expect(body.reason).toBe("rate_limit");
   });
 
-  it("tracks the taxonomy and labels endpoints under the same per-IP budget", async () => {
+  it("tracks the taxonomy and labels endpoints under independent per-IP budgets", async () => {
+    // Regression: these two used to share one cooldown bucket keyed by IP
+    // alone, so calling one right after the other from the same IP always
+    // 429'd the second - exactly what /explore does on every search (spec +
+    // labels fetched concurrently). Cooldowns are now keyed by (ip, endpoint).
     const ip = freshIp();
     const first = await getTaxonomy(req("https://orbital.example/api/registry-data/taxonomy", ip));
     expect(first.status).toBe(200);
 
     const second = await getLabels(req("https://orbital.example/api/registry-data/labels", ip));
-    expect(second.status).toBe(429);
+    expect(second.status).toBe(200);
+  });
+
+  it("does not 429 either request when a page fires spec and labels concurrently from one IP", async () => {
+    // Mirrors /explore's actual request pattern: Promise.all over two
+    // different registry-data endpoints from the same IP in the same tick.
+    const ip = freshIp();
+    const [taxonomyRes, labelsRes] = await Promise.all([
+      getTaxonomy(req("https://orbital.example/api/registry-data/taxonomy", ip)),
+      getLabels(req("https://orbital.example/api/registry-data/labels", ip)),
+    ]);
+
+    expect(taxonomyRes.status).toBe(200);
+    expect(labelsRes.status).toBe(200);
   });
 
   it("tracks IPs independently", async () => {

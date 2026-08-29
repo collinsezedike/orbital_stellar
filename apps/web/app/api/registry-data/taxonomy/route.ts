@@ -10,7 +10,7 @@ import { getTaxonomyRecords, REGISTRY_DATA_CACHE_CONTROL } from "@/lib/registryD
  */
 export async function GET(request: NextRequest) {
   const ip = clientIp(request);
-  const cooldown = checkRegistryDataCooldown(ip);
+  const cooldown = checkRegistryDataCooldown(ip, "taxonomy");
   if (!cooldown.ok) {
     return NextResponse.json(cooldown.body, {
       status: 429,

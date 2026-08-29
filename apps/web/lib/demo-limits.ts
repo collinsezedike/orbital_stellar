@@ -94,11 +94,21 @@ export function checkWebhookCooldown(
   return { ok: true };
 }
 
+/**
+ * Registry-data endpoints (taxonomy/labels/spec). Keyed by `ip:endpoint`
+ * rather than `ip` alone: `/explore` fans out to two different endpoints
+ * (spec + labels) in one `Promise.all`, and a single shared per-IP cooldown
+ * would 429 whichever of the two loses the race every single search - one
+ * request always arrives within the same cooldown window as the other.
+ * Per-endpoint still stops a caller hammering one route repeatedly.
+ */
 export function checkRegistryDataCooldown(
   ip: string,
+  endpoint: "taxonomy" | "labels" | "spec",
 ): { ok: true } | { ok: false; body: RateLimitEnvelope } {
+  const key = `${ip}:${endpoint}`;
   const now = Date.now();
-  const last = lastRegistryDataAt.get(ip);
+  const last = lastRegistryDataAt.get(key);
   if (last !== undefined && now - last < DEMO_LIMITS.registryDataCooldownMs) {
     const retryAfterMs = DEMO_LIMITS.registryDataCooldownMs - (now - last);
     return {
@@ -113,7 +123,7 @@ export function checkRegistryDataCooldown(
       },
     };
   }
-  lastRegistryDataAt.set(ip, now);
+  lastRegistryDataAt.set(key, now);
   return { ok: true };
 }
 

@@ -9,7 +9,7 @@ import { getLabelRecords, REGISTRY_DATA_CACHE_CONTROL } from "@/lib/registryData
  */
 export async function GET(request: NextRequest) {
   const ip = clientIp(request);
-  const cooldown = checkRegistryDataCooldown(ip);
+  const cooldown = checkRegistryDataCooldown(ip, "labels");
   if (!cooldown.ok) {
     return NextResponse.json(cooldown.body, {
       status: 429,
