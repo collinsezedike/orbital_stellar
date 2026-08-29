@@ -11,6 +11,8 @@ Per-package changelogs live in each package directory.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-29
+
 ### Added
 
 - `STABILITY.md` - strict semver on the public API of all `@orbital-stellar/*`
@@ -21,8 +23,16 @@ Per-package changelogs live in each package directory.
 - [`docs/migration/0.1-to-1.0.md`](docs/migration/0.1-to-1.0.md) - procedural
   before/after migration guide for the `0.1.0` → `1.0.0` bump (breaking
   `abiRegistry` default, `decodedData` shape, Wave 8 registry configuration).
-  Narrative release notes remain in this file’s `[1.0.0]` entry when cut;
-  do not duplicate them into the guide.
+- Starter boilerplates (Wave 1.5 distribution): `orbital-next-starter`
+  (`useStellarEvent` + a server-side SSE bridge), `orbital-express-starter`
+  (`EventEngine` + `WebhookDelivery` + a `CursorStore` adapter, graceful
+  SIGTERM shutdown), and `orbital-anchor-starter` (a real SEP-24/31 consumer
+  built on `@orbital-stellar/anchor-sdk` - SEP-1 discovery, SEP-10 auth, an
+  interactive SEP-24 deposit, and a SEP-31 cross-border send, verified live
+  against Stellar Development Foundation's own reference anchor). CI proves
+  `next-starter`/`express-starter` install from npm outside this workspace;
+  `anchor-starter` stays workspace-tested until `@orbital-stellar/anchor-sdk`
+  itself is published.
 
 ### Changed
 
@@ -39,8 +49,28 @@ Per-package changelogs live in each package directory.
 - Docs aligned with the refocused roadmap: README reframed around the
   decoding standard; open-source-policy and proposal forward-references
   updated; frozen-scope references removed from forward-looking docs.
+- `@orbital-stellar/pulse-core`: the hand-written `RawHorizonCreateAccount`
+  and `RawHorizonAccountMerge` raw-operation types now source their per-field
+  types from the OpenAPI-generated Horizon schema, so a future spec change
+  flows through automatically. The other ten hand-written `RawHorizon*`
+  operation interfaces (including `RawHorizonPayment`) stay hand-written
+  permanently - verified against the generated output, only three operation
+  kinds are named in Horizon's OpenAPI description at all, and the generated
+  `Payment` schema models the `/payments` collection envelope with a
+  mismatched `asset_code` type, not a reusable single-operation record. See
+  `packages/pulse-core/src/raw-horizon.ts`'s header for the full accounting.
 
 ### Fixed
+
+- `@orbital-stellar/anchor-sdk`: `Sep31Client.initiateTransaction` had no way
+  to send SEP-31's required top-level `amount` field - every send would have
+  failed against any real anchor. Found and fixed while verifying
+  `orbital-anchor-starter` live against `testanchor.stellar.org`.
+- `examples/next-starter`, `examples/express-starter`,
+  `examples/anchor-starter`: `tsconfig.json` was emitting build output nested
+  under `dist/src/` instead of `dist/`, silently breaking each starter's own
+  `package.json` `main`/`start` fields the moment a fresh `npm install` (not
+  a workspace link) was used to build them.
 
 ### Security
 
@@ -58,7 +88,7 @@ Per-package changelogs live in each package directory.
   `set_options` adding a signer) and have it blind-signed by the consumer's
   wallet, hardware device, or KMS.
 
-  Fixed in **0.2.0**. `Sep10Client` now verifies every challenge with
+  Fixed in **1.0.0**. `Sep10Client` now verifies every challenge with
   `WebAuth.readChallengeTx` before `sign` is invoked, rejects a
   `network_passphrase` that disagrees with the configured network, and refuses a
   non-`https` endpoint at construction.
@@ -82,6 +112,20 @@ Per-package changelogs live in each package directory.
   Or pass them explicitly: `new Sep10Client(endpoint, { serverAccountId,
   networkPassphrase, homeDomain, webAuthDomain })`. Anchors that publish no
   `SIGNING_KEY` are now refused rather than trusted.
+
+### Impact
+
+- The three starters give every distribution channel (a browser app, a
+  backend service, and an anchor integration) a runnable, tested reference
+  rather than a documentation snippet - `git clone` and one command each.
+- The `RawHorizon*` accounting closes out the last open Wave 1.4 item
+  honestly: most operation kinds genuinely have no generated counterpart to
+  migrate to, rather than papering over the gap.
+- `packages/*` move to `1.0.0` together, so the semver contract in
+  `STABILITY.md` starts binding from here.
+
+See [`docs/migration/0.1-to-1.0.md`](docs/migration/0.1-to-1.0.md) for the
+step-by-step upgrade path.
 
 ---
 
