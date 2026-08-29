@@ -12,12 +12,16 @@ on:
     paths:
       - 'examples/next-starter/**'
       - 'examples/express-starter/**'
+      - 'examples/anchor-starter/**'
+      - 'packages/anchor-sdk/**'
       - '.github/workflows/starter-smoke-test.yml'
   pull_request:
     branches: ["**"]
     paths:
       - 'examples/next-starter/**'
       - 'examples/express-starter/**'
+      - 'examples/anchor-starter/**'
+      - 'packages/anchor-sdk/**'
       - '.github/workflows/starter-smoke-test.yml'
 
 permissions:
@@ -93,3 +97,38 @@ jobs:
           done
           echo "ERROR: /healthz never responded within 30s"
           exit 1
+
+  anchor-starter-smoke:
+    # anchor-starter depends on @orbital-stellar/anchor-sdk, which is not yet
+    # published to npm (confirmed 404) - so unlike the other two starters,
+    # this runs inside the workspace rather than proving an npm-only install.
+    # It still proves the same "typechecks and boots" floor the acceptance
+    # criteria ask for. Revisit once anchor-sdk is publishable.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6.0.10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build anchor-sdk
+        run: pnpm tsc -p packages/anchor-sdk/tsconfig.json
+
+      - name: Typecheck
+        run: pnpm --filter orbital-anchor-starter typecheck
+
+      - name: Build
+        run: pnpm --filter orbital-anchor-starter build
+
+      - name: Boots (argument validation happens before any network call)
+        working-directory: examples/anchor-starter
+        run: |
+          if node dist/index.js 2>&1 | grep -q "Usage: orbital-anchor-starter"; then
+            echo "PASS: prints usage and exits without needing STELLAR_SECRET or network access"
+          else
+            echo "ERROR: did not print the expected usage message"
+            exit 1
+          fi
