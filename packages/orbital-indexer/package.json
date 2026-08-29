@@ -1,6 +1,6 @@
 {
   "name": "@orbital-stellar/orbital-indexer",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Auto-publish indexer: discovers unknown contracts' interfaces via WASM auto-discovery and publishes them to the on-chain ABI registry as part of normal engine operation.",
   "license": "MIT",
   "engines": {
