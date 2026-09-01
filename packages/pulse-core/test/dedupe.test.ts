@@ -116,4 +116,47 @@ describe("DedupeWindow", () => {
     // keyB and keyC are still within the window.
     expect(window.size).toBe(2);
   });
+
+  it("seenFrom suppresses a cross-transport repeat but not a same-transport one", () => {
+    const window = new DedupeWindow(10);
+    const key = deriveDedupeKey({ txHash: "tx-1", index: "0" });
+
+    // Three unified events emitted by one operation share a key.
+    expect(window.seenFrom(key, "unified")).toBe(false);
+    expect(window.seenFrom(key, "unified")).toBe(false);
+    expect(window.seenFrom(key, "unified")).toBe(false);
+
+    // The Horizon record for that same operation is the duplicate.
+    expect(window.seenFrom(key, "horizon")).toBe(true);
+
+    // ...and only once: a second Horizon observation is a distinct movement
+    // by the same-transport rule, so the counting property holds in both
+    // orderings.
+    expect(window.seenFrom(key, "horizon")).toBe(false);
+  });
+
+  it("seenFrom keeps distinct operations independent", () => {
+    const window = new DedupeWindow(10);
+    const keyA = deriveDedupeKey({ txHash: "tx-a", index: "0" });
+    const keyB = deriveDedupeKey({ txHash: "tx-a", index: "1" });
+
+    expect(window.seenFrom(keyA, "unified")).toBe(false);
+    expect(window.seenFrom(keyB, "horizon")).toBe(false);
+    expect(window.seenFrom(keyA, "horizon")).toBe(true);
+    expect(window.seenFrom(keyB, "unified")).toBe(true);
+  });
+
+  it("seenFrom respects the capacity bound", () => {
+    const window = new DedupeWindow(2);
+    const key = deriveDedupeKey({ txHash: "tx-1", index: "0" });
+
+    expect(window.seenFrom(key, "unified")).toBe(false);
+    window.seenFrom(deriveDedupeKey({ txHash: "tx-2", index: "0" }), "unified");
+    window.seenFrom(deriveDedupeKey({ txHash: "tx-3", index: "0" }), "unified");
+
+    expect(window.size).toBe(2);
+    // The first key was evicted, so its cross-transport pair is no longer
+    // recognised as a duplicate.
+    expect(window.seenFrom(key, "horizon")).toBe(false);
+  });
 });

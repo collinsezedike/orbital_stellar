@@ -24,7 +24,7 @@ import { decodeUnifiedSetAuthorized } from "./cap67/decodeSetAuthorized.js";
 import { normalizeUnifiedSetAuthorized } from "./cap67/normalizeSetAuthorized.js";
 import { issuerFromAsset, toPaymentAddress } from "./cap67/normalizeAssetEvent.js";
 import { DedupeWindow, deriveDedupeKey } from "./dedupe.js";
-import type { DedupeEventRef } from "./dedupe.js";
+import type { DedupeEventRef, DedupeTransport } from "./dedupe.js";
 import type {
   AccountCreatedEvent,
   AccountMergeEvent,
@@ -283,15 +283,24 @@ export class EventEngine {
    */
   private readonly dedupeWindow = new DedupeWindow(DEDUPE_WINDOW_CAPACITY);
   /**
-   * Associates a dedupe key with the exact event object it was derived for,
-   * without widening any public event type's shape. Set by the Horizon
-   * `onmessage` handler and by `dispatchUnifiedEvent()` for the two families
-   * with a unified equivalent (`payment`, `trustlineAuth`); every other
-   * event is never a duplication risk (only one transport ever produces it)
-   * and is never given an entry here. A `WeakMap` needs no manual cleanup -
-   * an entry disappears once the event object itself is no longer referenced.
+   * Associates a dedupe key - and the transport that observed it - with the
+   * exact event object it was derived for, without widening any public event
+   * type's shape. Set by the Horizon `onmessage` handler and by
+   * `dispatchUnifiedEvent()` for the two families with a unified equivalent
+   * (`payment`, `trustlineAuth`); every other event is never a duplication
+   * risk (only one transport ever produces it) and is never given an entry
+   * here. A `WeakMap` needs no manual cleanup - an entry disappears once the
+   * event object itself is no longer referenced.
+   *
+   * The transport travels with the key because suppression is cross-transport
+   * only: one operation can emit several unified events sharing a single
+   * (operation-granular) key, and those must not suppress each other. See
+   * {@link DedupeWindow.seenFrom}.
    */
-  private readonly dedupeKeyByEvent = new WeakMap<object, string>();
+  private readonly dedupeKeyByEvent = new WeakMap<
+    object,
+    { key: string; transport: DedupeTransport }
+  >();
   /**
    * Optional live Soroban subscriber. Wired only when the engine is configured
    * for live contract streaming; otherwise undefined, and the guarded calls
@@ -1493,7 +1502,11 @@ export class EventEngine {
             timestamp: ledgerClosedAt,
             ...(transfer.memo !== undefined ? { memo: transfer.memo } : {}),
           });
-          if (dedupeRef) this.dedupeKeyByEvent.set(pending, deriveDedupeKey(dedupeRef));
+          if (dedupeRef)
+            this.dedupeKeyByEvent.set(pending, {
+              key: deriveDedupeKey(dedupeRef),
+              transport: "unified",
+            });
           this.route(pending);
           return;
         }
@@ -1507,7 +1520,11 @@ export class EventEngine {
             asset: mint.asset,
             timestamp: ledgerClosedAt,
           });
-          if (dedupeRef) this.dedupeKeyByEvent.set(pending, deriveDedupeKey(dedupeRef));
+          if (dedupeRef)
+            this.dedupeKeyByEvent.set(pending, {
+              key: deriveDedupeKey(dedupeRef),
+              transport: "unified",
+            });
           this.route(pending);
           return;
         }
@@ -1521,14 +1538,22 @@ export class EventEngine {
             asset: burn.asset,
             timestamp: ledgerClosedAt,
           });
-          if (dedupeRef) this.dedupeKeyByEvent.set(pending, deriveDedupeKey(dedupeRef));
+          if (dedupeRef)
+            this.dedupeKeyByEvent.set(pending, {
+              key: deriveDedupeKey(dedupeRef),
+              transport: "unified",
+            });
           this.route(pending);
           return;
         }
         case "set_authorized": {
           const setAuthorized = decodeUnifiedSetAuthorized(event);
           const normalized = normalizeUnifiedSetAuthorized(setAuthorized, ledgerClosedAt);
-          if (dedupeRef) this.dedupeKeyByEvent.set(normalized, deriveDedupeKey(dedupeRef));
+          if (dedupeRef)
+            this.dedupeKeyByEvent.set(normalized, {
+              key: deriveDedupeKey(dedupeRef),
+              transport: "unified",
+            });
           this.route(normalized);
           return;
         }
@@ -1780,7 +1805,10 @@ export class EventEngine {
         if (family === "payment" || family === "trustlineAuth") {
           const ref = this.deriveHorizonDedupeRef(record);
           if (ref) {
-            this.dedupeKeyByEvent.set(event, deriveDedupeKey(ref));
+            this.dedupeKeyByEvent.set(event, {
+              key: deriveDedupeKey(ref),
+              transport: "horizon",
+            });
           }
         }
 
@@ -2898,8 +2926,10 @@ export class EventEngine {
     // movement observed via both transports during a routing transition.
     // Only `payment`/`trustlineAuth`-family events ever carry a key at all
     // (see `dedupeKeyByEvent`'s doc) - every other event is a no-op here.
-    const dedupeKey = this.dedupeKeyByEvent.get(event);
-    if (dedupeKey !== undefined && this.dedupeWindow.seenBefore(dedupeKey)) {
+    // Suppression is cross-transport only; a repeat key from the same
+    // transport is a distinct movement within one operation, not a duplicate.
+    const dedupe = this.dedupeKeyByEvent.get(event);
+    if (dedupe !== undefined && this.dedupeWindow.seenFrom(dedupe.key, dedupe.transport)) {
       return;
     }
 

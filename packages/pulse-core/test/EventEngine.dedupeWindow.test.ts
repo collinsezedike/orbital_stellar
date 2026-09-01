@@ -114,11 +114,24 @@ function horizonPaymentRecord(txHash: string, opId: string, to: string, from: st
   };
 }
 
-/** A CAP-67 unified transfer event whose `id` shares `opId` as its TOID prefix. */
-function unifiedTransferEvent(txHash: string, opId: string, from: string, to: string) {
+/**
+ * A CAP-67 unified transfer event whose `id` shares `opId` as its TOID prefix.
+ *
+ * `eventIndex` is the `-<n>` suffix Soroban RPC appends to distinguish several
+ * events emitted by the *same* operation. It defaults to 0 because most tests
+ * here only need one event per operation; the co-operation tests vary it.
+ */
+function unifiedTransferEvent(
+  txHash: string,
+  opId: string,
+  from: string,
+  to: string,
+  eventIndex = 0,
+) {
+  const id = `${opId}-${String(eventIndex).padStart(10, "0")}`;
   return {
-    id: `${opId}-0000000000`,
-    pagingToken: `${opId}-0000000000`,
+    id,
+    pagingToken: id,
     type: "contract",
     ledger: 100,
     ledgerClosedAt: "2026-08-01T00:00:00Z",
@@ -240,6 +253,90 @@ describe("EventEngine dedupe window wiring", () => {
     latestStream().handlers.onmessage(horizonPaymentRecord(txHash, opId1, to, from));
 
     expect(received).toHaveBeenCalledTimes(2);
+
+    await engine.stop();
+  });
+
+  it("delivers every unified event emitted by one operation, not just the first", async () => {
+    // Regression: a dedupe key is operation-granular - deriveUnifiedDedupeRef
+    // takes only the TOID prefix of the event `id`, dropping the `-<n>` event
+    // index - because the operation is the only granularity Horizon and the
+    // unified stream both express. One operation routinely emits several
+    // unified events though (a multi-hop path payment emits a `transfer` per
+    // hop), and those all share a key. Suppressing them as duplicates would
+    // silently drop legitimate distinct movements.
+    SorobanRpcClient.setCachedNetwork({ passphrase: TESTNET_PASSPHRASE, protocolVersion: 23 });
+    globalThis.fetch = makeFetch();
+
+    const to = Keypair.random().publicKey();
+    const from = Keypair.random().publicKey();
+    const txHash = "f".repeat(64);
+    const opId = "6854235736408066";
+
+    const engine = new EventEngine({
+      network: "testnet",
+      ingestion: "unified",
+      soroban: { rpcUrl: "https://fake-rpc.example", unifiedEvents: true },
+    });
+    const watcher = engine.subscribe(to);
+    const received = vi.fn();
+    watcher.on("payment.received", received);
+
+    engine.start();
+
+    // Three events, one operation: same txHash, same TOID, event index 0/1/2.
+    for (const eventIndex of [0, 1, 2]) {
+      (engine as any).dispatchUnifiedEvent(
+        unifiedTransferEvent(txHash, opId, from, to, eventIndex),
+      );
+    }
+
+    expect(received).toHaveBeenCalledTimes(3);
+
+    await engine.stop();
+  });
+
+  it("suppresses exactly one cross-transport duplicate however many events the operation emitted", async () => {
+    // The counting property that makes operation-granular keys safe: for an
+    // operation seen as N events on one transport and 1 record on the other,
+    // exactly one arrival is suppressed, so the watcher sees N either way.
+    // This covers the Horizon-first ordering - the unified-first ordering is
+    // the reverse of the same rule.
+    SorobanRpcClient.setCachedNetwork({ passphrase: TESTNET_PASSPHRASE, protocolVersion: 23 });
+    globalThis.fetch = makeFetch();
+
+    const to = Keypair.random().publicKey();
+    const from = Keypair.random().publicKey();
+    const txHash = "9".repeat(64);
+    const opId = "6854235736408067";
+
+    const engine = new EventEngine({
+      network: "testnet",
+      ingestion: "unified",
+      soroban: { rpcUrl: "https://fake-rpc.example", unifiedEvents: true },
+    });
+    const watcher = engine.subscribe(to);
+    const received = vi.fn();
+    watcher.on("payment.received", received);
+
+    engine.start();
+
+    // Horizon observes the operation first (one record).
+    (engine as any).effectiveIngestion = "horizon";
+    latestStream().handlers.onmessage(horizonPaymentRecord(txHash, opId, to, from));
+    expect(received).toHaveBeenCalledTimes(1);
+
+    // The unified stream then replays the same operation as three events.
+    // The first is the genuine duplicate of the Horizon record and is
+    // suppressed; the other two are distinct movements and are delivered.
+    (engine as any).effectiveIngestion = "unified";
+    for (const eventIndex of [0, 1, 2]) {
+      (engine as any).dispatchUnifiedEvent(
+        unifiedTransferEvent(txHash, opId, from, to, eventIndex),
+      );
+    }
+
+    expect(received).toHaveBeenCalledTimes(3);
 
     await engine.stop();
   });
